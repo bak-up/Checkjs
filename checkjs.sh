@@ -453,11 +453,25 @@ tongyong_config() {
 	wget_test=$( cat /tmp/wget_test.log | grep -o "200 OK")
 	if [ "$wget_test" == "200 OK" ];then
 		cd $File_path
-		git pull
-		#这里不要强制更新，不利于测试，如果对方删库，强制更新也会删除
-		#git fetch --all
-		#git reset --hard origin/$branch
-		init_data
+		if [ "$action2_if" == "2" ] && [ "$action3_if" == "2" ];then
+			old_git_commit=$(git log --format=format:"%h" --since="$action2 00:00:00" --before="$action2 23:59:59" -1)
+			git reset --hard $old_git_commit
+			ls ./ | grep -E 'js$|py$' | sort > $Oldfile
+
+			git pull
+			old_git_commit1=$(git log --format=format:"%h" --since="$action3 00:00:00" --before="$action3 23:59:59" -1)
+			git reset --hard $old_git_commit1
+			action2_num="($action2到$action3的仓库变化)"
+		elif [ "$action2_if" == "2" ];then
+			old_git_commit=$(git log --format=format:"%h" --since="$action2 00:00:00" --before="$action3 23:59:59" -1)
+			git reset --hard $old_git_commit
+			ls ./ | grep -E 'js$|py$' | sort > $Oldfile
+			action2_num="($action2到今天的仓库变化)"
+		else
+			git pull
+			init_data
+		fi
+
 		if [ $for_diff == "1" ];then
 			for_diff_cron
 		else
@@ -465,6 +479,7 @@ tongyong_config() {
 		fi
 		sendMessage
 		That_day
+		git pull
 	else
 		num="1"
 		eeror_num="1"
@@ -652,7 +667,7 @@ sendMessage() {
 		weixin_content_sort=$(echo  "$content" |sed "s/####/<hr\/><b>/g" |sed "s/$wrap$wrap_tab/<br>/g" |sed "s/$wrap/<br>/g" |sed "s/:/:<hr\/><\/b>/g"  )
 		weixin_content=$(echo "$weixin_content_sort<br><b>$by" | sed "s/https\:<hr\\/><\\/b>/https:/g" | sed "s/#### /<br><b>/g")
 		weixin_desp=$(echo "$weixin_content" | sed "s/<hr\/><b>/$weixin_line\n/g" |sed "s/<hr\/><\/b>/\n$weixin_line\n/g"| sed "s/<b>/\n/g"| sed "s/<br>/\n/g" | sed "s/<br><br>/\n/g" | sed "s/#/\n/g" )
-		title="${Script_name}${num}${auto_run}${ps_num}"
+		title="${Script_name}${num}${auto_run}${ps_num}${action2_num}"
 		push_menu
 	fi 
 	
@@ -920,6 +935,42 @@ system_variable() {
 	fi
 }
 
+time(){
+	#某个日期仓库与现在的变化
+	#１．获取当前日期
+	current_time=$(date +%Y-%m-%d)
+	#２．获取某一天前的仓库与现在对比（需要具体日期，openwrt 不支持此写法date +%Y-%m-%d -d '-52 day'）
+	if [ -z "$action2" ];then
+		clear
+		echo -e "${red}time命令没有发现日期，例子输入${green}sh \$checkjs time 2023-02-14${red}获取2023-02-14当天的仓库变化${white}"
+		exit 0
+	else
+		script
+	fi
+}
+
+script() {
+	KingRan_Script
+	JDHelloWorld
+	Github_6dylan6_Script
+	smiek2221_Script
+	curtinlv_script
+	ccwav
+	JDWXX_Script
+	cdle_carry_Script
+	X1a0He
+	zero205_Script
+	Ariszy_Script
+	yuannian1112
+	Aaron_Script
+	nianyuguai
+	fangpidedongsun
+	yangtingxiao
+	ZCY01_Script
+	#yyds_Script
+	#hundun
+	ZhiYi_Script
+}
 
 menu() {
 	description_if
@@ -934,27 +985,7 @@ menu() {
 	echo -e "$yellow 检测脚本是否最新:$white $Script_status "
 	echo "**********************************************"
 	echo > $dir_file/git_log/${current_time}.log
-	KingRan_Script
-	yyds_Script
-	Github_6dylan6_Script
-	smiek2221_Script
-	ccwav
-	curtinlv_script
-	JDWXX_Script
-	cdle_carry_Script
-	X1a0He
-	zero205_Script
-	Ariszy_Script
-	yuannian1112
-	JDHelloWorld
-	Aaron_Script
-	nianyuguai
-	fangpidedongsun
-	yangtingxiao
-	ZCY01_Script
-	hundun
-	ZhiYi_Script
-	rm -rf $dir_file/shylocks_Script_gitee
+	script
 
 	if [ $(date +%H%M) == "1200" ];then
 		echo "12点开始推送今天的github更新记录"
@@ -977,10 +1008,16 @@ help() {
 	echo "2.无视当前时间规则推送"
 	echo " sh \$checkjs that_day_push"
 	echo ""
-	echo "3.删除当前的定时任务，暂时停止脚本"
+	echo "3.某个日期仓库与现在的变化"
+	echo " sh \$checkjs time 2023-01-01 (日期自己设置)"
+	echo ""
+	echo "4.指定日期仓库变化"
+	echo " sh \$checkjs time 2023-01-01 2023-02-01(这样就可以看到１月份到２月份的更新情况)"
+	echo ""
+	echo "4.删除当前的定时任务，暂时停止脚本"
 	echo " sh \$checkjs task_delete"
 	echo ""
-	echo "4.删除这个脚本所有创建的文件，包括脚本自己"
+	echo "5.删除这个脚本所有创建的文件，包括脚本自己"
 	echo "sh \$checkjs ds_setup"
 	echo ""
 }
@@ -995,7 +1032,11 @@ run_script_if() {
 		if [ "$script_date" == "" ];then
 			echo -e "${yellow}script_date为空${white}"
 		elif [ "$script_date" == "*" ];then
-			run_script
+			if [ "$action1" == "time" ];then
+				echo "不做任何操作"
+			else
+				run_script
+			fi
 		elif [ `echo "$script_date" | grep -o "-"` == "-" ];then
 			script_date_min=$(echo "$script_date" | awk -F "-" '{print $1}')
 			script_date_max=$(echo "$script_date" | awk -F "-" '{print $2}')
@@ -1020,7 +1061,11 @@ run_script_if() {
 			fi
 		else
 			echo -e "script_date的字符：$script_date,进入下级判断"
-			run_script
+			if [ "$action1" == "time" ];then
+				echo "不做任何操作"
+			else
+				run_script
+			fi
 		fi
 	fi
 }
@@ -1206,6 +1251,9 @@ ACTIVITY_ID				jd_wxCollectionActivity2.js
 prodevactCode				jd_prodev.js
 
 #KingRan
+jd_lzkj_loreal_cart_url			jd_lzkj_loreal_cart.js
+jd_lzkj_loreal_draw_url			jd_lzkj_loreal_draw.js
+jd_lzkj_loreal_followShop_url		jd_lzkj_loreal_followShop.js
 jd_zsz_activityId			jd_zsz.js
 yhyauthorCode				jd_prodev.py
 jd_teamFLP_activityId			jd_teamFLP.js
@@ -1372,7 +1420,7 @@ export jd_drawCenter_addCart="true" #// 是否做加购任务，默认不做
 							echo "$variable_script_name值：为$variable_script_num不操作"
 						else
 							case "$variable_script_name" in
-							jd_zsz_activityId|jd_teamFLP_activityId|jd_showInviteJoin_activityUrl|jd_lzkj_loreal_invite_url|jd_wxSecond_activityId|jd_collect_shop_activityUrl|jd_collect_item_activityUrl|jd_wxKnowledgeActivity_activityUrl|jd_daily_activityId|jd_cjdaily_activityId|jd_wxCollectionActivity_activityUrl|jd_wxBuildActivity_activityId|jd_cjwxShopFollowActivity_activityId|jd_wxKnowledgeActivity_activityId|jd_cjwxKnowledgeActivity_activityId|jd_wxSecond_activityId|VENDER_ID|wish_appIdArrList|jd_mhurlList|comm_activityIDList|computer_activityId|jd_wdz_activityId|M_FOLLOW_SHOP_ARGV|VENDER_ID|PKC_TXGZYL|LUCK_DRAW_URL|DPLHTY|jd_cjhy_activityId|jd_zdjr_activityId|jd_wxShareActivity_activityId|jd_wxgame_activityId|jd_drawCenter_activityId|JD_Lottery)
+							jd_lzkj_loreal_cart_url|jd_lzkj_loreal_draw_url|jd_lzkj_loreal_followShop_url|jd_zsz_activityId|jd_teamFLP_activityId|jd_showInviteJoin_activityUrl|jd_lzkj_loreal_invite_url|jd_wxSecond_activityId|jd_collect_shop_activityUrl|jd_collect_item_activityUrl|jd_wxKnowledgeActivity_activityUrl|jd_daily_activityId|jd_cjdaily_activityId|jd_wxCollectionActivity_activityUrl|jd_wxBuildActivity_activityId|jd_cjwxShopFollowActivity_activityId|jd_wxKnowledgeActivity_activityId|jd_cjwxKnowledgeActivity_activityId|jd_wxSecond_activityId|VENDER_ID|wish_appIdArrList|jd_mhurlList|comm_activityIDList|computer_activityId|jd_wdz_activityId|M_FOLLOW_SHOP_ARGV|VENDER_ID|PKC_TXGZYL|LUCK_DRAW_URL|DPLHTY|jd_cjhy_activityId|jd_zdjr_activityId|jd_wxShareActivity_activityId|jd_wxgame_activityId|jd_drawCenter_activityId|JD_Lottery)
 								export $i
 								cp $dir_file/KingRan_Script/$js_name1 ${script_dir}/$js_name1
 								echo "${script_dir}/$js_name1运行，当前时间`date`" >>/tmp/tg_run_script.log
@@ -1602,11 +1650,15 @@ echo "---------------------------------------------------------------------/n/n"
 
 
 action1="$1"
+action2="$2"
+action2_if=$(echo "$action2" | grep -o "-" | wc -l)
+action3="$3"
+action3_if=$(echo "$action3" | grep -o "-" | wc -l)
 if [ -z $action1 ]; then
 	menu
 else
 	case "$action1" in
-			update_script|system_variable|menu|that_day_push|help|task_delete|ds_setup|tg|rm_log)
+			time|update_script|system_variable|menu|that_day_push|help|task_delete|ds_setup|tg|rm_log)
 			$action1
 			;;
 			*)
